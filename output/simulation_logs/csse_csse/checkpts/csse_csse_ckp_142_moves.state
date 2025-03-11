@@ -1,0 +1,8 @@
+Scaling(variable=gamma,num_tried_current=9989,num_tried_total=21995,num_accepted_current=5191,num_accepted_total=11689,tuning_value=2.0327)
+Scaling(variable=delta,num_tried_current=10082,num_tried_total=22195,num_accepted_current=5188,num_accepted_total=11641,tuning_value=0.765882)
+Scaling(variable=rho,num_tried_current=10029,num_tried_total=21831,num_accepted_current=5356,num_accepted_total=11847,tuning_value=2.17255)
+Scaling(variable=eta,num_tried_current=10140,num_tried_total=22202,num_accepted_current=5105,num_accepted_total=11397,tuning_value=2.23909)
+BetaSimplex(variable=relative_clado,num_tried_current=9913,num_tried_total=21759,num_accepted_current=4591,num_accepted_total=10150,tuning_value=10.2285)
+ElementSwapSimplex(variable=relative_clado,num_tried_current=9871,num_tried_total=21747,num_accepted_current=806,num_accepted_total=1758,tuning_value=nan)
+Scaling(variable=turnover,num_tried_current=9996,num_tried_total=22154,num_accepted_current=4178,num_accepted_total=8909,tuning_value=0.171964)
+UpDownScaling(variable=total_speciation,num_tried_current=9980,num_tried_total=22117,num_accepted_current=4497,num_accepted_total=10069,tuning_value=0.358311)
