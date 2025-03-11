@@ -1,0 +1,930 @@
+# ChromoHiSSE
+# TensorPhylo Implemented
+
+# Reset iterations and reinititation params
+# initialize from a checkpoint? (0 = No , 1 = Y)
+reinitiate = 0
+# Set the number of iterations for burnin/tuning/tuningInterval/post-tuning:
+burnin = 0
+tuneBurn = 0
+tuningInt = 0
+postBurn = 10000
+
+# error handling: k must be at least, say, 10, and must be even
+if (k < 10 || k % 2 != 0) {
+	print("error: k must be at least 10 and must be even")
+	q()
+}
+
+mvi = 0
+
+age  = tree.rootAge()
+taxa = tree.taxa()
+
+### Anagenic rate matrix for chromosomes
+## set up anagenetic matrix manually
+# establish an empty rate matrix
+for(i in 1:(2*k+2)) {
+for(j in 1:(2*k+2)) {
+r[i][j] <- 0.0
+}
+}
+
+# populate the anagenetic rates matrix with a loop
+for(i in 1:k) { # i is the state
+
+	idx = i + 1 # this is the index of state i in hidden state A
+	idx_hidden = idx + k + 1 # this is the index of state i in hidden state B
+
+	if (i == 1) { # n=1 (minimum chromosome number): fission, polyploidy, demipolyploidy
+
+		r[idx][idx + 1] := gamma_a + rho_a + 0.5 * eta_a 
+		r[idx_hidden][idx_hidden + 1] := gamma_b + rho_b + 0.5 * eta_b 
+
+	} else if (i == 2) { # n=2: fission, fusion, polyploidy (+2), and even demipolyploidy (+1)
+
+		r[idx][idx - 1] := delta_a
+		r[idx_hidden][idx_hidden - 1] := delta_b
+
+		r[idx][idx + 1] := gamma_a + eta_a
+		r[idx_hidden][idx_hidden + 1] := gamma_b + eta_b
+
+		r[idx][idx + i] := rho_a
+		r[idx_hidden][idx_hidden + i] := rho_b
+
+	} else if (i == 3) { # n=3: fission, fusion, polyploidy (+i), and odd demipolyploidy (+i*1.5)
+
+		r[idx][idx - 1] := delta_a
+		r[idx_hidden][idx_hidden - 1] := delta_b
+
+		r[idx][idx + 1] := gamma_a + 0.5 * eta_a
+		r[idx_hidden][idx_hidden + 1] := gamma_b + 0.5 * eta_b
+		
+		r[idx][idx + i] := rho_a
+		r[idx_hidden][idx_hidden + i] := rho_b
+
+		r[idx][round(idx * 1.5)] := 0.5 * eta_a
+		r[idx_hidden][round(idx * 1.5 + k + 1)] := 0.5 * eta_b
+
+	} else if (3 < i && i + i <= k) { # 3 < i < k/2: fission, fusion, polyploidy, & demipolyploidy
+
+		r[idx][idx - 1] := delta_a
+		r[idx_hidden][idx_hidden - 1] := delta_b
+
+		r[idx][idx + 1] := gamma_a
+		r[idx_hidden][idx_hidden + 1] := gamma_b
+
+		r[idx][idx + i] := rho_a
+		r[idx_hidden][idx_hidden + i] := rho_b
+
+		if (i % 2 == 0) { # even demipolyploidy
+
+			r[idx][round(i * 1.5 + 1)] := eta_a
+			r[idx_hidden][round(i * 1.5 + 1 + k + 1)] := eta_b
+
+		} else if (i % 2 != 0) { # odd demipolyploidy
+
+			r[idx][round(idx * 1.5)] := 0.5 * eta_a
+			r[idx_hidden][round(idx * 1.5 + k + 1)] := 0.5 * eta_b
+
+			r[idx][round(idx * 1.5 - 1)] := 0.5 * eta_a
+			r[idx_hidden][round(idx * 1.5 + k)] := 0.5 * eta_b
+
+		}
+
+	} else if (k < i + i && i * 1.5 <= k) { # k/2 < i < k/1.5: # fission, fusion, & demipolyploidy
+
+		r[idx][idx - 1] := delta_a
+		r[idx_hidden][idx_hidden - 1] := delta_b
+
+		r[idx][idx + 1] := gamma_a
+		r[idx_hidden][idx_hidden + 1] := gamma_b
+
+		if (i % 2 == 0) { # even demipolyploidy
+
+			r[idx][round(i * 1.5 + 1)] := eta_a
+			r[idx_hidden][round(i * 1.5 + 1 + k + 1)] := eta_b
+
+		} else if (i % 2 != 0) { # odd demipolyploidy
+
+			r[idx][round(idx * 1.5)] := 0.5 * eta_a
+			r[idx_hidden][round(idx * 1.5 + k + 1)] := 0.5 * eta_b
+
+			r[idx][round(idx * 1.5 - 1)] := 0.5 * eta_a
+			r[idx_hidden][round(idx * 1.5 + k)] := 0.5 * eta_b
+
+		}
+
+	} else if (i * 1.5 - 0.5 == k) { # upper boundary case when odd-descending, but not odd-ascending, is allowed: # fission, fusion, & reducing demipolyploidy
+
+		r[idx][idx - 1] := delta_a
+		r[idx_hidden][idx_hidden - 1] := delta_b
+
+		r[idx][idx + 1] := gamma_a
+		r[idx_hidden][idx_hidden + 1] := gamma_b
+
+		r[idx][round(idx * 1.5 - 1)] := 0.5 * eta_a
+		r[idx_hidden][round(idx * 1.5 + k)] := 0.5 * eta_b
+
+	} else if (i < k) { # fission & fusion only
+
+		r[idx][idx - 1] := delta_a
+		r[idx_hidden][idx_hidden - 1] := delta_b
+
+		r[idx][idx + 1] := gamma_a
+		r[idx_hidden][idx_hidden + 1] := gamma_b
+
+
+	} else if (i == k) { # n=k (max chromosome number): fusion only
+
+		r[idx][idx - 1] := delta_a
+		r[idx_hidden][idx_hidden - 1] := delta_b
+
+	}
+
+	r[idx][idx_hidden] := alpha
+	r[idx_hidden][idx] := alpha
+}
+
+Q_combined := fnFreeK(r, rescale=FALSE)
+print("Anagenic Rates Matrix Built")
+
+### Cladogenetic stuff
+clado_rates := total_speciation * abs(relative_clado)
+
+clado_no_change_a := clado_rates[1]
+clado_no_change_b := clado_rates[2]
+clado_fission_a   := clado_rates[3]
+clado_fission_b   := clado_rates[4]
+clado_fusion_a    := clado_rates[5]
+clado_fusion_b    := clado_rates[6]
+clado_polyploid_a := clado_rates[7]
+clado_polyploid_b := clado_rates[8]
+clado_demipoly_a  := clado_rates[9]
+clado_demipoly_b  := clado_rates[10]
+chi               := clado_rates[11]
+
+## write a very large loop that will build a matrix to account for transitions 
+## (add element for clado change between hidden using the chi rates)
+ne = 0
+clado_events[++ne] <- [1,1,1]
+clado_probs[ne]    := Probability(1.0)
+
+# cladogenetic transitions for the hidden state w/ 0 chromosomes
+clado_events[++ne] <- [1 + k + 1,1 + k + 1,1 + k + 1]
+clado_probs[ne]    := Probability(1.0)
+
+# also specify the speciation rates
+lambda[1] := 0
+lambda[k+2] := 0
+
+# cladogenetric transitions loop (TB formulation v4)
+for(i in 1:k) { # loop over all possible chromosome states (i is the state)
+
+idx = i + 1 # this is the index of state i in hidden state a
+idx_hidden = idx + k + 1 # this is the index of state i in hidden state b
+
+	if (i == 1) { # fission, polyploidy, demipolyploidy (odd (up))
+
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fission_a + clado_polyploid_a + 0.5 * clado_demipoly_b + chi) 
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# increase by one (1 -> 2)
+		clado_events[++ne] <- [idx, idx + 1, idx]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_a + clado_polyploid_a + (0.5 * clado_demipoly_a)) / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + 1]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_a + clado_polyploid_a + (0.5 * clado_demipoly_a)) / lambda[idx])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+		# hidden state B
+
+		# speciation rate 
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fission_b + clado_polyploid_b + 0.5 * clado_demipoly_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# increase by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden + 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_b + clado_polyploid_b + (0.5 * clado_demipoly_b)) / lambda[idx_hidden]) 
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + 1]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_b + clado_polyploid_b + (0.5 * clado_demipoly_b)) / lambda[idx_hidden]) 
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+
+	} else if ( i == 2 ) { 
+
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fission_a + clado_fusion_a + clado_polyploid_a + clado_demipoly_a + chi)
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# increase by one
+		clado_events[++ne] <- [idx, idx + 1, idx]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_a + clado_demipoly_a) / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + 1]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_a + clado_demipoly_a) / lambda[idx])
+
+		# decrease by one
+		clado_events[++ne] <- [idx, idx - 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+
+		# polyploidization 
+		clado_events[++ne] <- [idx, idx + i, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + i]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_a / lambda[idx])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+	# hidden state B
+
+		# speciation rate
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fission_b + clado_fusion_b + clado_polyploid_b + clado_demipoly_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# increase by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden + 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_b + clado_demipoly_b) / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + 1]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_b + clado_demipoly_b) / lambda[idx_hidden])
+
+		# decrease by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden - 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+
+		# polyploidization
+		clado_events[++ne] <- [idx_hidden, idx_hidden + i, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + i]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_b / lambda[idx_hidden])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+
+
+	} else if ( i == 3 ) {
+
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fission_a + clado_fusion_a + clado_polyploid_a + clado_demipoly_a + chi)
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# increase by one (fission and odd down demip.)
+		clado_events[++ne] <- [idx, idx + 1, idx]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_a + (0.5 * clado_demipoly_a)) / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + 1]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_a + (0.5 * clado_demipoly_a)) / lambda[idx])
+
+		# decrease by one
+		clado_events[++ne] <- [idx, idx - 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+
+		# polyploidization
+		clado_events[++ne] <- [idx, idx + i, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + i]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_a / lambda[idx])
+
+		# demipolyploidization
+		# up
+		clado_events[++ne] <- [idx, round(idx * 1.5), idx]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, round(idx * 1.5)]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+	# hidden state B
+
+		# speciation rate
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fission_b + clado_fusion_b + clado_polyploid_b + clado_demipoly_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# increase by one (fission and decending odd demip.)
+		clado_events[++ne] <- [idx_hidden, idx_hidden + 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_b + (0.5 * clado_demipoly_b)) / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + 1]
+		clado_probs[ne]    := Probability(0.5 * (clado_fission_b + (0.5 * clado_demipoly_b)) / lambda[idx_hidden])
+
+		# decrease by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden - 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+
+		# polyploidization
+		clado_events[++ne] <- [idx_hidden, idx_hidden + i, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + i]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_b / lambda[idx_hidden])
+
+		# demipolyploidization 
+		# up
+		clado_events[++ne] <- [idx_hidden, round(idx * 1.5 + k + 1), idx_hidden]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, round(idx * 1.5 + k + 1)]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+
+	} else if ( 3 < i && i + i <= k ) {	# fission, fusion, polyploidy, demipolyploidy
+	
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fission_a + clado_fusion_a + clado_polyploid_a + clado_demipoly_a + chi)
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# increase by one
+		clado_events[++ne] <- [idx, idx + 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+
+		# decrease by one
+		clado_events[++ne] <- [idx, idx - 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+
+		# polyploidization
+		clado_events[++ne] <- [idx, idx + i, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + i]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_a / lambda[idx])
+
+		# demipolyploidization 
+		if (i % 2 == 0) { # even chromosome counts
+			clado_events[++ne] <- [idx, round(i * 1.5 + 1), idx]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_a / lambda[idx])
+			clado_events[++ne] <- [idx, idx, round(i * 1.5 + 1)]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_a / lambda[idx])
+
+		} else { # odd chromosome counts
+			# up
+			clado_events[++ne] <- [idx, round(idx * 1.5), idx]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			clado_events[++ne] <- [idx, idx, round(idx * 1.5)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			# down
+			clado_events[++ne] <- [idx, round(idx * 1.5 - 1), idx]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			clado_events[++ne] <- [idx, idx, round(idx * 1.5 - 1)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			}
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+	# hidden state B
+
+		# speciation rate
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fission_b + clado_fusion_b + clado_polyploid_b + clado_demipoly_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# increase by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden + 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+
+		# decrease by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden - 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+
+		# polyploidization
+		clado_events[++ne] <- [idx_hidden, idx_hidden + i, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + i]
+		clado_probs[ne]    := Probability(0.5 * clado_polyploid_b / lambda[idx_hidden])
+
+		# demipolyploidization 
+		if (i % 2 == 0) { # even chromosome counts 
+			clado_events[++ne] <- [idx_hidden, round(i * 1.5 + k + 2), idx_hidden]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_b / lambda[idx_hidden])
+			clado_events[++ne] <- [idx_hidden, idx_hidden, round(i * 1.5 + k + 2)]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_b / lambda[idx_hidden])
+
+		} else { # odd chromosome counts
+			# up
+			clado_events[++ne] <- [idx_hidden, round(idx * 1.5 + k + 1), idx_hidden]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			clado_events[++ne] <- [idx_hidden, idx_hidden, round(idx * 1.5 + k + 1)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			# down
+			clado_events[++ne] <- [idx_hidden, round(idx * 1.5 + k), idx_hidden]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			clado_events[++ne] <- [idx_hidden, idx_hidden, round(idx * 1.5 + k)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			}
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+
+
+	} else if ( k < i + i &&  i * 1.5 <= k) { # fission, fusion, demipolyploidy
+
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fission_a + clado_fusion_a + clado_demipoly_a + chi)
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# increase by one
+		clado_events[++ne] <- [idx, idx + 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+
+		# decrease by one
+		clado_events[++ne] <- [idx, idx - 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+
+		# demipolyploidization 
+		if (i % 2 == 0) { # even chromosome counts
+			clado_events[++ne] <- [idx, round(i * 1.5 + 1), idx]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_a / lambda[idx])
+			clado_events[++ne] <- [idx, idx, round(i * 1.5 + 1)]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_a / lambda[idx])
+
+		} else { # odd chromosome counts
+			# up
+			clado_events[++ne] <- [idx, round(idx * 1.5), idx]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			clado_events[++ne] <- [idx, idx, round(idx * 1.5)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			# down
+			clado_events[++ne] <- [idx, round(idx * 1.5 - 1), idx]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			clado_events[++ne] <- [idx, idx, round(idx * 1.5 - 1)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+			}
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+	# hidden state B
+
+		# speciation rate
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fission_b + clado_fusion_b + clado_demipoly_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# increase by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden + 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+
+		# decrease by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden - 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+
+		# demipolyploidization 
+		if (i % 2 == 0) { # even chromosome counts 
+			clado_events[++ne] <- [idx_hidden, round(i * 1.5 + k + 2), idx_hidden]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_b / lambda[idx_hidden])
+			clado_events[++ne] <- [idx_hidden, idx_hidden, round(i * 1.5 + k + 2)]
+			clado_probs[ne]    := Probability(0.5 * clado_demipoly_b / lambda[idx_hidden])
+
+		} else { # odd chromosome counts
+			# odd up
+			clado_events[++ne] <- [idx_hidden, round(idx * 1.5 + k + 1), idx_hidden]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			clado_events[++ne] <- [idx_hidden, idx_hidden, round(idx * 1.5 + k + 1)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			# down
+			clado_events[++ne] <- [idx_hidden, round(idx * 1.5 + k), idx_hidden]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			clado_events[++ne] <- [idx_hidden, idx_hidden, round(idx * 1.5 + k)]
+			clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+			}
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+
+	} else if (i * 1.5 - 0.5 == k) {
+
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fission_a + clado_fusion_a + 0.5 * clado_demipoly_a + chi)
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# increase by one
+		clado_events[++ne] <- [idx, idx + 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+
+		# decrease by one
+		clado_events[++ne] <- [idx, idx - 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+
+		# demipolyploidization
+		# down
+		clado_events[++ne] <- [idx, round(idx * 1.5 - 1), idx]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, round(idx * 1.5 - 1)]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_a / lambda[idx])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+	# hidden state B
+
+		# speciation rate
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fission_b + clado_fusion_b + 0.5 * clado_demipoly_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# increase by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden + 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+
+		# decrease by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden - 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+
+		# demipolyploidization 
+		# down
+		clado_events[++ne] <- [idx_hidden, round(idx * 1.5 + k), idx_hidden]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, round(idx * 1.5 + k)]
+		clado_probs[ne]    := Probability(0.25 * clado_demipoly_b / lambda[idx_hidden])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+
+
+	} else if ( i < k ) { # fission and fusion
+
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fission_a + clado_fusion_a + chi)
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# increase by one
+		clado_events[++ne] <- [idx, idx + 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_a / lambda[idx])
+
+		# decrease by one
+		clado_events[++ne] <- [idx, idx - 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+	# hidden state B
+
+		# speciation rate
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fission_b + clado_fusion_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# increase by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden + 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden + 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fission_b / lambda[idx_hidden])
+
+		# decrease by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden - 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+
+	} else if ( i == k) { # maximum state -- fusion only
+
+	# hidden state A
+
+		# speciation rate
+		lambda[idx] := abs(clado_no_change_a + clado_fusion_a + chi)
+
+		# no change
+		clado_events[++ne] <- [idx, idx, idx]
+		clado_probs[ne]    := Probability(clado_no_change_a / lambda[idx])
+
+		# decrease by one
+		clado_events[++ne] <- [idx, idx - 1, idx]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])
+		clado_events[++ne] <- [idx, idx, idx - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_a / lambda[idx])	
+
+		# hidden state change 
+		clado_events[++ne] <- [idx, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+		clado_events[++ne] <- [idx, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx])
+
+	# hidden state B
+
+		# speciation rate
+		lambda[idx_hidden] := abs(clado_no_change_b + clado_fusion_b + chi)
+
+		# no change
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden]
+		clado_probs[ne]    := Probability(clado_no_change_b / lambda[idx_hidden])
+
+		# decrease by one
+		clado_events[++ne] <- [idx_hidden, idx_hidden - 1, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx_hidden - 1]
+		clado_probs[ne]    := Probability(0.5 * clado_fusion_b / lambda[idx_hidden])		
+
+		# hidden state change 
+		clado_events[++ne] <- [idx_hidden, idx, idx_hidden]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+		clado_events[++ne] <- [idx_hidden, idx_hidden, idx]
+		clado_probs[ne]    := Probability(0.5 * chi / lambda[idx_hidden])
+	
+	} else { # nothing should make it to this point
+		
+		print("A critical error has occurred during construction of the cladogenic rates matrix...")
+	
+	}
+
+}
+
+# map the speciation rates to chromosome cladogenetic events
+omega := fnCladogeneticProbabilityMatrix(clado_events, clado_probs, 2*k + 2)
+print("Cladogenic Rates Matrix Built")
+
+# Anagenetic rates moves
+# ascending dysploidy
+# moves[++mvi] = mvScale(gamma_a, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(gamma_a, lambda = 0.1, tuneTarget = 0.4, weight=2)
+# moves[++mvi] = mvScale(gamma_b, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(gamma_b, lambda = 0.1, tuneTarget = 0.4, weight=2)
+moves[++mvi] = mvUpDownScale(weight=1, lambda = 0.1)
+moves[mvi].addVariable(gamma_a, up = TRUE)
+moves[mvi].addVariable(gamma_b, up = TRUE)
+# descending dysploidy
+# moves[++mvi] = mvScale(delta_a, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(delta_a, lambda = 0.1, tuneTarget = 0.4, weight=2)
+# moves[++mvi] = mvScale(delta_b, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(delta_b, lambda = 0.1, tuneTarget = 0.4, weight=2)
+moves[++mvi] = mvUpDownScale(weight=1, lambda = 0.1)
+moves[mvi].addVariable(delta_a, up = TRUE)
+moves[mvi].addVariable(delta_b, up = TRUE)
+# polyploidy
+# moves[++mvi] = mvScale(rho_a, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(rho_a, lambda = 0.1, tuneTarget = 0.4, weight=2)
+# moves[++mvi] = mvScale(rho_b, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(rho_b, lambda = 0.1, tuneTarget = 0.4, weight=2)
+moves[++mvi] = mvUpDownScale(weight=1, lambda = 0.1)
+moves[mvi].addVariable(rho_a, up = TRUE)
+moves[mvi].addVariable(rho_b, up = TRUE)
+# demi-polyploidy
+# moves[++mvi] = mvScale(eta_a, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(eta_a, lambda = 0.1, tuneTarget = 0.4, weight=2)
+# moves[++mvi] = mvScale(eta_b, lambda = 0.2, tuneTarget = 0.2)
+moves[++mvi] = mvScale(eta_b, lambda = 0.1, tuneTarget = 0.4, weight=2)
+moves[++mvi] = mvUpDownScale(weight=1, lambda = 0.1)
+moves[mvi].addVariable(eta_a, up = TRUE)
+moves[mvi].addVariable(eta_b, up = TRUE)
+## Ana rate for hidden characters
+moves[++mvi] = mvScale(alpha)
+
+# moves[++mvi] = mvUpDownScale(weight=2, lambda = 0.1)
+# moves[mvi].addVariable(total_speciation, up = TRUE)
+# moves[mvi].addVariable(alpha, up = FALSE)
+
+## diversification parameter moves
+# turnover (extinction)
+moves[++mvi] = mvScale(turnover, lambda=0.1)
+for (i in 1:(2*k + 2)) {
+    mu[i] := turnover
+}
+# total speciation
+moves[++mvi] = mvScale(total_speciation, lambda=0.1)
+# relative clado
+moves[++mvi] = mvBetaSimplex(relative_clado, alpha=100, weight = 5)
+moves[++mvi] = mvElementSwapSimplex(relative_clado, weight = 3)
+# speciation, extinction, ana hidden
+moves[++mvi] = mvUpDownScale(weight=1, lambda=0.1)
+moves[mvi].addVariable(total_speciation, up=true)
+moves[mvi].addVariable(turnover, up=true)
+moves[mvi].addVariable(alpha, up=true)
+
+# moves[++mvi] = mvUpDownScale(weight=1, lambda=0.1)
+# moves[mvi].addVariable(total_speciation, up=true)
+# moves[mvi].addVariable(delta_a, up=true)
+# moves[mvi].addVariable(delta_b, up=false)
+print("All MCMC moves defined")
+
+root_freq_abs <-  rep(1, 2 * k + 2)
+root_freq_abs[1] <- 0
+root_freq_abs[1 + k + 1] <- 0
+root_frequencies <- simplex(root_freq_abs)
+# root_frequencies <- simplex(rep(1, 2 * k + 2))
+condition        <- "time"
+
+# the distribution
+x ~ dnGLHBDSP(rootAge   = age,
+              lambda    = lambda,
+              mu        = mu,
+              eta       = Q_combined,
+              omega     = omega,
+              pi        = root_frequencies,
+              rho       = frac,
+              condition = condition,
+              taxa      = taxa,
+              nStates   = 2 * (k + 1),
+              nProc     = nProc,
+		      zeroIndex = FALSE)
+print("GHLBDSP")
+
+x.clamp(tree)
+x.clampCharData(data)
+print("Model clamped")
+
+x.lnProbability()
+
+# model
+print("Defining Model...")
+my_model = model(x)
+
+# monitors
+print("Setting monitors...")
+monitors[1] = mnScreen(printgen=1)
+monitors[2] = mnModel(printgen=model_sample_freq, file=log_file, exclude = ["clado_probs", "lambda", "mu"])
+if (SCMing == 1) {
+monitors[3] = mnStochasticCharacterMap(glhbdsp = x, printgen = SCM_sample_freq, filename = SCMlog_file, include_simmap = true)
+print("		monitoring stochasitc character map")
+}
+#monitors[3] = mnJointConditionalAncestralState(filename="output/newchromohisse_mrm_dryopt_anc_states_run01.log", printgen=1, tree=tree, cdbdp=x, withStartStates=true, type="NaturalNumbers")
+print("All monitors set")
+
+# analysis
+print("Initializing MCMC...")
+my_mcmc = mcmc(my_model, monitors, moves)
+
+
+# Starting the MCMC. 
+if ( burnin > 0 ) {
+	if ( reinitiate == 0 ) {
+		print("	Intializing burnin from scratch")
+	} else if ( reinitiate == 1 ) {
+		print(" Intializing burnin from checkpoint")
+		my_mcmc.initializeFromCheckpoint(checkpt)
+	}
+	my_mcmc.run(generations=burnin, 
+				checkpointInterval=checkpt_interval, 
+				checkpointFile=checkpt)
+	my_mcmc.run(generations=tuneBurn, 
+				tuningInterval=tuningInt,
+				checkpointInterval=checkpt_interval, 
+				checkpointFile=checkpt)
+	my_mcmc.run(generations=postBurn,
+				checkpointInterval=checkpt_interval, 
+				checkpointFile=checkpt)
+} else if (burnin == 0 && tuneBurn > 0) {
+	if ( reinitiate == 0 ) {
+		print(" Intializing from scratch")
+		print(" 	Tuning MCMC")
+	} else if ( reinitiate == 1 ) {
+		print(" Intializing from checkpoint")
+		print(" 	Continuing to Tune MCMC")
+		my_mcmc.initializeFromCheckpoint(checkpt)
+	}
+	my_mcmc.run(generations=tuneBurn, 
+				tuningInterval=tuningInt,
+				checkpointInterval=checkpt_interval, 
+				checkpointFile=checkpt)
+	my_mcmc.run(generations=postBurn,
+				checkpointInterval=checkpt_interval, 
+				checkpointFile=checkpt)
+} else {
+	if ( reinitiate == 0 ) {
+		print("	Intializing from scratch")
+	} else if ( reinitiate == 1 ) {
+		print("	Intializing from checkpoint")
+		print("		Continuing main analysis")
+		my_mcmc.initializeFromCheckpoint(checkpt)
+	}
+	my_mcmc.run(generations=postBurn,
+			checkpointInterval=checkpt_interval, 
+			checkpointFile=checkpt)
+}
+
+my_mcmc.operatorSummary()
+
+q()

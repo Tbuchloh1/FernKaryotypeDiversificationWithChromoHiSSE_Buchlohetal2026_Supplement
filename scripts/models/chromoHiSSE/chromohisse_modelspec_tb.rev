@@ -1,0 +1,96 @@
+# Model : ChromoHiSSE
+# Clade : CLADE
+# TensorPhylo = TRUE
+
+#### TENSORPHYLO
+# load
+loadPlugin("TensorPhylo", "PATH/TO/TENSORPHYLO")
+# number of processes for TensorPhylo
+nProc = 12
+
+#### LOAD THE PHYLOGENETIC TREE
+tree = readTrees("PATH/TO/CLADE.tree")[1]
+# tree = tree.jitter(1e-5)
+
+#### MAXIMUM CHROMOSOME COUNT ALLOWED (k = max+10)
+k    = 200 ### # k must be even & <10
+#### LOAD THE CHROMOSOME COUNT DATA
+data = readCharacterDataDelimited("PATH/TO/CLADE_counts_expanded.tsv", 
+                                  stateLabels=2 * k + 2, 
+                                  type="NaturalNumbers", 
+                                  delimiter="\t", 
+                                  header=FALSE)
+
+#### SET FILE PATHS FOR LOG AND CHECKPOINT FILES
+log_file = "output/CLADE_chromohisse_r1.log"
+checkpt = "output/checkpts/CLADE_chromohisse_checkpt_r1.state"
+SCMlog_file = "output/CLADE_chromohisse_SCM_r1.log"
+
+#### RUN CONDITIONS
+# initialize from a checkpoint? (0 = No , 1 = Y)
+reinitiate = 0
+
+# perform stochastic character mapping? (0 = No , 1 = Y)
+SCMing = 0
+SCM_sample_freq = 10
+
+# Set the number of iterations for burnin/tuning/tuningInterval/post-tuning:
+burnin = 500
+tuneBurn = 1000
+tuningInt = 250
+postBurn = 100000
+
+# Set the number of iterations to sample from MCMC
+model_sample_freq = 1  # model monitor
+checkpt_interval = 10  # checkpoint saves
+
+#### SET PRIORS
+# Anagenic rates
+gamma_a ~ dnExponential(10) # ascending dysploidy
+gamma_b ~ dnExponential(10)
+delta_a ~ dnExponential(10) # descending dysploidy
+delta_b ~ dnExponential(10)
+rho_a ~ dnExponential(10)   # polyploidy
+rho_b ~ dnExponential(10)
+eta_a ~ dnExponential(10)   # demipolyploidy
+eta_b ~ dnExponential(10)
+alpha ~ dnExponential(10)
+
+# Cladogenic rates
+taxa <- tree.taxa()
+speciation_mean <- ln( taxa.size() ) / tree.rootAge()
+speciation_pr <- 1 / speciation_mean
+total_speciation ~ dnExponential(speciation_pr)
+relative_clado ~ dnDirichlet([1,1,1,1,1,1,1,1,1,1,1]) # Each cladogenetic event type is assigned its own speciation rate.
+# Turnover
+turnover ~ dnExponential(speciation_pr) # unrestricted extinction (i.e., can exceed speciation)
+# rel_extinction ~ dnUniform(0, 1.0) 
+# turnover <- rel_extinction * total_speciation
+
+
+#### MCMC START VALUES (optional)
+# Anagenetic rates
+gamma_a.setValue(1)
+gamma_b.setValue(1)
+delta_a.setValue(1)
+delta_b.setValue(1)
+rho_a.setValue(1)
+rho_b.setValue(1)
+eta_a.setValue(1)
+eta_b.setValue(1)
+alpha.setValue(1)
+
+## Diversification rates
+# Cladogenic rates
+relative_clado.setValue(simplex([1,1,1,1,1,1,1,1,1,1,1]))
+# Speciation rate
+total_speciation.setValue(1)
+# Turnover rate (extinction)
+turnover.setValue(1)
+
+#### Set misc. parameters
+# Set the probability of sampling species. Emprically determined ((included species) / (accepted species)).
+frac <- 0.1
+
+#### Run ChromoSSE:
+source("scripts/chromohisse_tp_mrm_tb.rev")

@@ -1,0 +1,88 @@
+# Model : ChromoSSE
+# Clade : PTERIDINEAE - ChromoSSE Sim
+# TensorPhylo = TRUE
+
+dataset = 112
+treefile = "data/csse/sim" + dataset + ".tre"
+datafile = "data/csse/csse/sim" + dataset + ".tsv"
+outfile  = "output/csse_csse/csse_csse_" + dataset + ".log"
+tp_path = "/home/tbuchlo/software/rb_mrm_tp"
+checkptfile = "output/csse_csse/checkpts/csse_csse_ckp_" + dataset + ".state"
+
+#### TENSORPHYLO
+loadPlugin("TensorPhylo", tp_path)
+# number of processes for TensorPhylo
+nProc = 2
+
+#### LOAD THE PHYLOGENETIC TREE
+tree = readTrees(treefile)[1]
+# tree = tree.jitter(1e-5)
+
+#### MAXIMUM CHROMOSOME COUNT ALLOWED (k = max+10)
+k    = 34 ### # k must be even & <10
+#### LOAD THE CHROMOSOME COUNT DATA
+data = readCharacterDataDelimited(datafile, 
+                                  stateLabels=(k + 1), 
+                                  type="NaturalNumbers", 
+                                  delimiter="\t", 
+                                  header=FALSE)
+
+#### SET FILE PATHS FOR LOG AND CHECKPOINT FILES
+log_file = outfile
+checkpt = checkptfile
+# SCMlog_file = "output/chisse_csse/chisse_csse_SCM_1.log"
+
+#### RUN CONDITIONS
+# initialize from a checkpoint? (0 = No , 1 = Y)
+reinitiate = 0
+
+# perform stochastic character mapping? (0 = No , 1 = Y)
+SCMing = 0
+SCM_sample_freq = 10
+
+# Set the number of iterations for burnin/tuning/tuningInterval/post-tuning:
+burnin = 1000
+tuneBurn = 1000
+tuningInt = 250
+postBurn = 10000
+
+# Set the number of iterations to sample from MCMC
+model_sample_freq = 1  # model monitor
+checkpt_interval = 100  # checkpoint saves
+
+#### SET PRIORS
+# Anagenic rates
+gamma ~ dnExponential(10) # ascending dysploidy
+delta ~ dnExponential(10) # descending dysploidy
+rho ~ dnExponential(10)   # polyploidy
+eta ~ dnExponential(10)   # demipolyploidy
+
+# Cladogenic rates
+taxa <- tree.taxa()
+speciation_mean <- ln( taxa.size() ) / tree.rootAge()
+speciation_pr <- 1 / speciation_mean
+total_speciation ~ dnExponential(speciation_pr)
+relative_clado ~ dnDirichlet([1,1,1,1,1]) # Each cladogenetic event type is assigned its own speciation rate.
+# Turnover
+turnover ~ dnExponential(speciation_pr)
+
+#### MCMC START VALUES (optional)
+# # Anagenetic rates
+# gamma.setValue(0.000626)
+# delta.setValue(0.0126)
+# rho.setValue(0.00079)
+# eta.setValue(0.00026)
+
+# # Cladogenic rates
+# relative_clado.setValue(simplex([0.9143,0.0014,0.016,0.0537,0.0128]))
+# # Speciation rate
+# total_speciation.setValue(0.412)
+# # Turnover rate
+# turnover.setValue(0.344)
+
+#### Set misc. parameters
+# Set the probability of sampling species. Emprically determined from PPG1.
+frac <- 0.2
+
+#### Run ChromoSSE:
+source("scripts/csse/chromosse_tp_mrm_tb.rev")
