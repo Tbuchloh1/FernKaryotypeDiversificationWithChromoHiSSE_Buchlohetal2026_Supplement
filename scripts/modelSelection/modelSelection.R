@@ -1,4 +1,5 @@
 library(RevGadgets)
+library(geiger)
 
 workingdir <- "/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/3.Results"
 # Set working directory
@@ -76,27 +77,29 @@ df6 <- traces[[1]]
 
 
 ## Extract MAP estimates for model likelihood
-# set up an empty dataframe for all my outputs
-df <- data.frame(matrix(data = NA, nrow = 6, ncol = 11))
-colnames(df) <- c("clade","n","model","k","lnL","AIC","dAIC","AICc","dAICc","BIC","dBIC")
+# set up an empty dataframe for all outputs
+df <- data.frame(matrix(data = NA, nrow = 6, ncol = 13))
+colnames(df) <- c("clade","n","model","k","lnL","AIC","dAIC","AICc","dAICc","AICM","dAICM","BIC","dBIC")
 df$clade <- c(rep(c("Polyp","Asple","Pteri"),2))
 df$n <- rep(c(473,267,222),2)
-df$model <- c(rep("ChromHiSSE",3),rep("ChromSSE",3))
+df$model <- c(rep("ChromoHiSSE",3),rep("ChromoSSE",3))
 df$k <- c(rep("21",3),rep("10",3))
 
 dfs <- list(df1,df2,df3,df4,df5,df6)
 
-# ln(L), AIC, AICc, BIC
+# ln(L), AIC, AICc, AICM, BIC
 for (i in 1:6) {
   df_temp <- dfs[[i]]
   L <- getMAP(df_temp$Likelihood)
   k <- as.numeric(df$k[i])
   AIC_val <- 2 * k - 2 * L 
   AICc_val <- 2 * k - 2 * L + (2 * k * (k + 1)) / (df$n[i] - k - 1)
+  AICM_val <- aicm(df_temp$Likelihood)
   BIC_val <- log(df$n[i]) * k - 2 * L
   df$lnL[i] <- L
   df$AIC[i] <- AIC_val
   df$AICc[i] <- AICc_val
+  df$AICM[i] <- AICM_val
   df$BIC[i] <- BIC_val
 }
 
@@ -106,6 +109,8 @@ for (i in 1:3) {
   c_aic <- df$AIC[i+3]
   ch_aicc <- df$AICc[i]
   c_aicc <- df$AICc[i+3]
+  ch_aicm <- df$AICM[i]
+  c_aicm <- df$AICM[i+3]
   ch_bic <- df$BIC[i]
   c_bic <- df$BIC[i+3]
   
@@ -126,6 +131,15 @@ for (i in 1:3) {
     ch_dAICc <- 0
     c_dAICc <- c_aicc - ch_aicc
   }
+
+  # dAICM
+  if (ch_aicm > c_aicm) {
+    ch_dAICm <- ch_aicm - c_aicm 
+    c_dAICm <- 0  
+  } else if (c_aicm > ch_aicm) {
+    ch_dAICm <- 0
+    c_dAICm <- c_aicm - ch_aicm
+  }
   
   # dBIC
   if (ch_bic > c_bic) {
@@ -142,6 +156,9 @@ for (i in 1:3) {
   
   df$dAICc[i] <- ch_dAICc
   df$dAICc[i+3] <- c_dAICc
+  
+  df$dAICM[i] <- ch_dAICm
+  df$dAICM[i+3] <- c_dAICm
   
   df$dBIC[i] <- ch_dBIC
   df$dBIC[i+3] <- c_dBIC

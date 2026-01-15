@@ -1,6 +1,7 @@
 library(coda)
 library(RevGadgets)
 library(psych)
+library(bayesplot)
 
 setwd("/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/3.Results/chromohisse_v3")
 
@@ -11,7 +12,6 @@ setwd("/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/3.R
 #                 "output/polyp/polyp_chromohisse_tb_4.log",
 #                 "output/polyp/polyp_chromohisse_tb_5.log")
 # # ASPLE
-
 # tracepaths <- c("output/asple/asple_chromohisse_tb_1.log",
 #                 "output/asple/asple_chromohisse_tb_2.log",
 #                 "output/asple/asple_chromohisse_tb_3.log",
@@ -77,35 +77,6 @@ mcmc_list <- mcmc.list(traces.mcmc1,
                        traces.mcmc4,
                        traces.mcmc5)
 
-# gelman.diag(mcmc_list, autoburnin = F)
-# gelman.plot(mcmc_list) 
-# ess <- data.frame(effectiveSize(mcmc_list))
-# lapply(mcmc_list, effectiveSize)
+traces <- rbind(traces.df1, traces.df2, traces.df3, traces.df4, traces.df5)
 
-
-####### 
-## catch outputs here one at a time
-
-# make dataframe to catch diagnostics 
-# chromohisse_mcmcdiagnostics <- data.frame(vars = vars, polyp_ess = NA, polyp_rhat_pt = NA, polyp_rhat_uCI = NA,
-                                                       # asple_ess = NA, asple_rhat_pt = NA, asple_rhat_uCI = NA,
-                                                       # pteri_ess = NA, pteri_rhat_pt = NA, pteri_rhat_uCI = NA)
-
-# polypodiineae
-# chromohisse_mcmcdiagnostics$polyp_ess <- effectiveSize(mcmc_list)
-# chromohisse_mcmcdiagnostics$polyp_rhat_pt <- gelman.diag(mcmc_list, autoburnin = F)$psrf[,1]
-# chromohisse_mcmcdiagnostics$polyp_rhat_uCI <- gelman.diag(mcmc_list, autoburnin = F)$psrf[,2]
-
-# aspleniineae
-# chromohisse_mcmcdiagnostics$asple_ess <- effectiveSize(mcmc_list)
-# chromohisse_mcmcdiagnostics$asple_rhat_pt <- gelman.diag(mcmc_list, autoburnin = F)$psrf[,1]
-# chromohisse_mcmcdiagnostics$asple_rhat_uCI <- gelman.diag(mcmc_list, autoburnin = F)$psrf[,2]
-
-# pteridineae
-chromohisse_mcmcdiagnostics$pteri_ess <- effectiveSize(mcmc_list)
-chromohisse_mcmcdiagnostics$pteri_rhat_pt <- gelman.diag(mcmc_list, autoburnin = F)$psrf[,1]
-chromohisse_mcmcdiagnostics$pteri_rhat_uCI <- gelman.diag(mcmc_list, autoburnin = F)$psrf[,2]
-
-#######
-# write diagnostics table to .csv
-write.csv(chromohisse_mcmcdiagnostics, "/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/2.Methods/postprocessing/convergence/chromohisse_mcmcconvergence_diagnostics.csv")
+mcmc_trace(traces)
