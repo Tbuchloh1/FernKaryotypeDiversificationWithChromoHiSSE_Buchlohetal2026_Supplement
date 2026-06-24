@@ -2,7 +2,7 @@ library(coda)
 library(RevGadgets)
 library(psych)
 
-setwd("/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/3.Results/chromohisse_v3")
+setwd("/path/to/working/directory")
 
 # # POLYP
 # tracepaths <- c("output/polyp/polyp_chromohisse_tb_1.log",

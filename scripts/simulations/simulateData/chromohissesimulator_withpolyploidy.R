@@ -1,4 +1,5 @@
-setwd("/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/2.Methods/simulation/src")
+
+setwd("/path/to/working/directory")
 source("simulate.R", chdir = TRUE)
 
 ############

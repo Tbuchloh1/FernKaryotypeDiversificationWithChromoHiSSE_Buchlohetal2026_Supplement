@@ -7,7 +7,7 @@ library(gridExtra)
 library(ggpubr)
 library(treeio)
 
-workingdir <- "/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns"
+workingdir <- "/path/to/working/directory"
 
 # POLYPODIINEAE
 # tree_path <- "1.Data/polypodiineae/polypodiineae_csomepruned.tree"

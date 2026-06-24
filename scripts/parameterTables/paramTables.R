@@ -1,7 +1,8 @@
 library(RevGadgets)
 library(coda)
 
-workingdir <- "/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/3.Results"
+workingdir <- "/path/to/working/directory"
+
 # Set working directory
 setwd(workingdir)
 

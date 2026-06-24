@@ -3,7 +3,7 @@ library(tidyverse)
 library(HDInterval)
 library(common)
 
-workingdir <- "/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/3.Results/chromohisse_v3/output"
+workingdir <- "/path/to/working/directory"
 
 ## set file paths
 # # POLYPODIINEAE

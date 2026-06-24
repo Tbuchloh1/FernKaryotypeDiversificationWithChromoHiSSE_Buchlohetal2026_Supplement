@@ -7,7 +7,7 @@ library(gridExtra)
 library(ggpubr)
 library(treeio)
 
-workingdir <- "/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns"
+workingdir <- "/path/to/working/directory"
 
 # # sim
 # tree_path <- "2.Methods/tests/sim_reduced/data/chisse/sim11.tre"

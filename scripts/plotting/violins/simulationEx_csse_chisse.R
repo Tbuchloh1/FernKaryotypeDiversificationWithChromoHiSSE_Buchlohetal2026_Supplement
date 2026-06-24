@@ -2,7 +2,7 @@ library(RevGadgets)
 library(ggplot2)
 library(tidyverse)
 
-workingdir <- "/Users/tbuchloh/Dropbox/2.Dissertation/Projects/1.KaryotypeEvol_Ferns/3.Results/sims/sim_reduced/output/csse_chisse"
+workingdir <- "/path/to/working/directory"
 
 ## set file paths
 logfile_paths <- "csse_chisse_110.log"
