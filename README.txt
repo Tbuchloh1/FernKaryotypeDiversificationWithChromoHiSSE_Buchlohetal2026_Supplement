@@ -1,12 +1,13 @@
 Data from: Chromosome evolution model reveals hidden variation in fern diversification rates
 
 Dataset DOI: 10.5061/dryad.612jm64hr
+Associated Manuscript DOI: 10.1093/sysbio/syag054
 
 Description of the data and file structure
 
 Description of the data and file structure
 
-Repository contains the datasets and scripts needed to reproduce the findings of the article published by Systematic Biology titled "Chromosome submitted to Systematic Biology under the title "Chromosome Model Reveals Hidden Variation in Karyotype-Driven Speciation of Ferns."
+Repository contains the datasets and scripts needed to reproduce the findings of the article published by Systematic Biology titled "Chromosome Model Reveals Hidden Variation in Karyotype-Driven Speciation of Ferns."
 
 Repository contains three compressed directories containing: data ('data.zip'), output ('output.zip'), and scripts ('scripts.zip'). 
 
